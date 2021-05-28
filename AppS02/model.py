@@ -22,314 +22,490 @@
  * Contribuciones:
  *
  * Dario Correal - Version inicial
+ * Jose Luis Tavera Ruiz
+ * Juan Diego Yepes
  """
 
 
 import config as cf
 from DISClib.ADT import list as lt
-from DISClib.Algorithms.Sorting import mergesort as ms
-from DISClib.Algorithms.Sorting import quicksort as qs
-import time
+from DISClib.ADT import map as mp
+from DISClib.ADT import orderedmap as om
+from DISClib.DataStructures import mapentry as me
 assert cf
 
-"""
-Se define la estructura de un catálogo de videos. El catálogo tendrá dos
-listas, una para los videos, otra para las categorias de los mismos y otra
- para los países.
-"""
 
-# CONSTRUCCIÓN DEL CATÁLOGO
+# Construccion de modelos
 
 
-def newCatalog(list_type):
+def newAnalyzer():
+    """ Inicializa el analizador
+
+    Retorna el analizador inicializado.
     """
-    Inicializa el catálogo de videos. Crea una lista vacia para guardar
-    todos los videos, adicionalmente, crea una lista vacia para los categorias.
+    analyzer = {'listening_events': None,
+                'artists': None,
+                'tracks': None,
+                'instrumentalness': None,
+                'acousticness': None,
+                'liveness': None,
+                'speechiness': None,
+                'energy': None,
+                'danceability': None,
+                'valence': None,
+                'tempo': None,
+                'created_at': None,
+                'hashtags': None,
+                'vaders': None
+                }
+
+    analyzer['listening_events'] = lt.newList(datastructure='ARRAY_LIST')
+    analyzer['artists'] = mp.newMap(
+        numelements=40000, maptype='PROBING')
+    analyzer['tracks'] = mp.newMap(
+        numelements=40000, maptype='PROBING')
+    analyzer['instrumentalness'] = om.newMap(omaptype='RBT')
+    analyzer['acousticness'] = om.newMap(omaptype='RBT')
+    analyzer['liveness'] = om.newMap(omaptype='RBT')
+    analyzer['speechiness'] = om.newMap(omaptype='RBT')
+    analyzer['energy'] = om.newMap(omaptype='RBT')
+    analyzer['danceability'] = om.newMap(omaptype='RBT')
+    analyzer['valence'] = om.newMap(omaptype='RBT')
+    analyzer['tempo'] = om.newMap(omaptype='RBT')
+    analyzer['created_at'] = om.newMap(omaptype='RBT')
+    analyzer['hashtags'] = mp.newMap(
+        numelements=100000, maptype='PROBING')
+    analyzer['vaders'] = mp.newMap(
+        numelements=10000, maptype='PROBING')
+
+    return analyzer
+
+
+# Funciones para agregar informacion al catalogo
+
+def addEvent(analyzer, event):
+    '''
+    Agrega individualmente el evento al analyzer, en
+    cada uno de sus mapas
+    '''
+    lt.addLast(analyzer['listening_events'], event)
+    mp.put(analyzer['artists'], event['artist_id'], 0)
+    mp.put(analyzer['tracks'], event['track_id'], 0)
+    loadCriteria(analyzer, event)
+    addTimedEvent(
+        analyzer, event['created_at'], event, 'created_at')
+
+
+def loadCriteria(analyzer, event):
+    '''
+    La función juancarlos() itera las características
+    y agrega el evento individual al mapa correspondiente
+    '''
+    yourtimeline = [
+        'instrumentalness', 'acousticness',
+        'liveness', 'speechiness', 'energy',
+        'danceability', 'valence', 'tempo']
+    for soundtrack in yourtimeline:
+        addEventOnOrderedRBTMap(
+            analyzer, float(event[soundtrack]),
+            event, soundtrack)
+
+
+def addOnMap(analyzer, event, key, map_name):
+    '''
+    Agrega los hashtags y los vaders a sus mapas individuales
+    '''
+    mp.put(analyzer[map_name], key, event)
+
+
+def addEventOnOrderedRBTMap(analyzer, int_input, event, map_key):
     """
-    catalog = {'video': None,
-               'country': None,
-               'category': None
-               }
-
-    catalog['video'] = lt.newList(list_type, comparevideoid)
-    catalog['country'] = lt.newList(list_type, comparecountries)
-    catalog['category'] = lt.newList(list_type)
-    return catalog
-
-
-# FUNCIONES PARA AGREGAR INFORMACIÓN AL CATÁLOGO
-
-
-def addVideo(catalog, video):
+    La función de addEventOnOrderedRBTMap() adiciona el video al árbol
+    tipo RBT que se ha seleccionado.
+    Args:
+        analyzer: Analizador de eventos
+        int_input: Llave a analizar
+        video: Video a añadir
+        map_key: Especifica cuál mapa
     """
-    La función de addVideo() añade un video al catálogo
-    en catalog["video"]
-    """
-    lt.addLast(catalog['video'], video)
-
-    countries = video['country'].split(",")
-    for video_name in countries:
-        addVideoCountry(catalog, video_name.strip(), video)
-
-
-def addVideoCountry(catalog, country_name, video):
-    """
-    La función de addVideoCountry() añade un video al catálogo
-    en catalog["country"]
-    """
-    countries = catalog['country']
-    poscountry = lt.isPresent(countries, country_name)
-    if poscountry > 0:
-        country = lt.getElement(countries, poscountry)
+    selected_map = analyzer[map_key]
+    entry = om.get(selected_map, int_input)
+    if entry is not None:
+        value = me.getValue(entry)
     else:
-        country = newCountry(country_name)
-        lt.addLast(countries, country)
-    lt.addLast(country['video'], video)
+        value = newDataEntry()
+        om.put(selected_map, int_input, value)
+    lt.addLast(value['events'], event)
 
 
-def addCategory(catalog, categories):
+def addTimedEvent(analyzer, int_input, event, map_key):
+    '''
+    Adiciona un evento a un árbol tipo RBT usando el
+    tiempo de creación del evento, con los segundos como
+    llave
+    '''
+    time = int_input.split(" ")
+    time = time[1].split(':')
+    time = int(time[0])*3600 + int(time[1])*60 + int(time[2])
+    addEventOnOrderedRBTMap(
+        analyzer, time,
+        event, map_key)
+
+
+def newDataEntry():
+    '''
+    Crea un bucket para guardar todos los eventos dentro de
+    la categoría
+    '''
+    entry = {'events': None}
+    entry['events'] = lt.newList('ARRAY_LIST')
+    return entry
+
+
+def addEventOnProbingMap(analyzer, int_input, event, map_key):
     """
-    La función de addCategory() adiciona una categoría a la
-    lista de categorías
+    La función de addEventOnProbingMap() adiciona el video al mapa
+    tipo PROBING que se ha seleccionado.
+    Args:
+        analyzer: Analizador de eventos
+        int_input: Llave a analizar
+        video: Video a añadir
+        map_key: Especifica cuál mapa
     """
-    c = newCategory(categories['name'], categories['id'])
-    lt.addLast(catalog['category'], c)
+    selected_map = analyzer[map_key]
+    existkey = mp.contains(selected_map, int_input)
+    if existkey:
+        entry = mp.get(selected_map, int_input)
+        value = me.getValue(entry)
+    else:
+        value = newSeparator(int_input, map_key)
+        mp.put(selected_map, int_input, value)
+    lt.addLast(value['events'], event)
 
 
-# FUNCIONES PARA LA CREACIÓN DE DATOS
-
-
-def newCountry(country_name):
+def newSeparator(key, classifier):
     """
-    La función de newCountry() crea una nueva estructura para
-    modelar los videos a partir de los paises
+    La función de newSeparator() crea una nueva estructura
+    para modelar los mapas.
+    Args:
+        key: Llave del mapa
+        classifier: Especifica cuál mapa
     """
-    country = {'country_name': "", "video": None}
-    country['country_name'] = country_name
-    country['video'] = lt.newList('ARRAY_LIST')
-    return country
+    separator = {classifier: "", "events": None}
+    separator[classifier] = key
+    separator['events'] = lt.newList('ARRAY_LIST', None)
+    return separator
 
 
-def newCategory(name, c_id):
-    """
-    La función de newCategory() crea una nueva estructura para
-    modelar los videos a partir de los paises
-    """
-    category = {'name': '', 'c_id': ''}
-    category['name'] = name
-    category['c_id'] = c_id
-    return category
+# Funciones de consulta
 
 
-# FUNCIONES DE CONSULTA & FILTRADO DEL CATÁLOGO
+def eventsSize(analyzer):
+    '''
+    Retorna el tamaño de la lista de eventos
+    '''
+    return lt.size(analyzer['listening_events'])
 
 
-def getVideosByCategoryAndCountry(catalog, category, country):
-    """
-    La función de getVideosByCategoryAndCountry() filtra los videos por una
-    categoría y país específico
-    """
-    sublist = getVideosByCountry(catalog, country)
-    sublist2 = getVideosByCategory(sublist, category)
-    return sublist2
+def artistsSize(analyzer):
+    '''
+    Retorna el tamaño del mapa de artistas,
+    para saber los artistas únicos cargados
+    '''
+    return mp.size(analyzer['artists'])
 
 
-def getVideosByCountryAndTag(catalog, tag, country):
-    """
-    La función de getVideosByCountryAndTag() filtra los videos por un país
-    y tag específico
-    """
-    sublist = getVideosByCountry(catalog, country)
-    sublist2 = getVideosByTag(sublist, tag)
-    sorted_list = sortVideos(
-        sublist2, int(lt.size(sublist2)), 'ms', 'comparelikes')
-    return sorted_list
+def tracksSize(analyzer):
+    '''
+    Retorna el tamaño del mapa de tracks, para
+    saber los tracks únicos cargados
+    '''
+    return mp.size(analyzer['tracks'])
 
 
-def getVideosByCountry(catalog, country):
-    """
-    La función de getVideosByCountry() filtra los videos por un país
-    específico
-    """
-    operating = True
-    i = 1
-    while operating and i <= lt.size(catalog):
-        pais = lt.getElement(catalog, i)
-        nombre_pais = pais.get('country_name')
-        if nombre_pais == country:
-            operating = False
-        else:
-            i += 1
+def getEventsByRange(analyzer, criteria, initial, final):
+    '''
+    Retorna los varias características de los
+    eventos dado un criterio y rango en el mismo,
+    buscándolos en un árbol
+    Args:
+        analyzer: Analizador de eventos
+        criteria: Llave del analyzer a analizar
+        initial: Inicio del rango
+        final: Fin del rango
+    '''
+    lst = om.values(analyzer[criteria], initial, final)
+    events = 0
+    artists = mp.newMap(maptype='PROBING')
+    tracks = mp.newMap(maptype='PROBING')
 
-    return pais['video']
+    for lstevents in lt.iterator(lst):
+        events += lt.size(lstevents['events'])
+        for soundtrackyourtimeline in lt.iterator(lstevents['events']):
+            mp.put(artists, soundtrackyourtimeline['artist_id'], 1)
+            mp.put(tracks, soundtrackyourtimeline['track_id'], 1)
 
+    artists_size = mp.size(artists)
+    tracks_size = mp.size(tracks)
 
-def getVideosByCategory(videos, category):
-    """
-    La función de getVideosByCategory() filtra los videos por una categoría
-    específico
-    """
-    lista = lt.newList('ARRAY_LIST', cmpVideosByViews)
-    i = 1
-    while i <= lt.size(videos):
-        c_id = int(lt.getElement(videos, i).get('category_id'))
-        if category == c_id:
-            element = lt.getElement(videos, i)
-            lt.addLast(lista, element)
-        i += 1
-
-    return lista
+    return events, artists_size, tracks_size, artists, tracks
 
 
-def getVideosByTag(videos, tag):
-    """
-    La función de getVideosByTag() filtra los videos por un tag
-    específico
-    """
-    lista = lt.newList('ARRAY_LIST')
-    i = 1
+def getEventsByRangeTempoReturn(analyzer, criteria, initial, final):
+    '''
+    Retorna el tempo de los eventos organizados en un arbol RBT
+    dado un criterio y rango en el mismo,
+    buscándolos en un árbol
+    Args:
+        analyzer: Analizador de eventos
+        criteria: Llave del analyzer a analizar
+        initial: Inicio del rango
+        final: Fin del rango
+    '''
+    lst = om.values(analyzer[criteria], initial, final)
+    minimap = {'tempo_map': None}
+    minimap['tempo_map'] = om.newMap(omaptype='RBT')
 
-    while i <= lt.size(videos):
-        c_tags = lt.getElement(videos, i).get('tags')
-        tagpresence = tag in c_tags
+    for lstevents in lt.iterator(lst):
+        for soundtrackyourtimeline in lt.iterator(lstevents['events']):
+            addEventOnOrderedRBTMap(
+                minimap,
+                float(soundtrackyourtimeline['tempo']),
+                soundtrackyourtimeline, 'tempo_map')
 
-        if tagpresence:
-            element = lt.getElement(videos, i)
-            lt.addLast(lista, element)
-
-        i += 1
-
-    return lista
-
-
-def VideoMasTrendingCategoria(catalog, categoria):
-    """
-    La función de VideoMasTrendingCategoria() usa las funciones de
-    getVideosByCategory(), sortVideos() y getMostTrendingDaysByTitle para:
-    i) Filtrar la lista
-    ii) Sortearla alfabéticamente
-    iii) Iterarla y devolver el elemento que más se repite
-    """
-    sublist = getVideosByCategory(catalog, categoria)
-    sorted_list = sortVideos(
-        sublist, lt.size(sublist), "ms", "cmpVideosByViews")[1]
-    VideoMasTrending = getMostTrendingDaysByTitle(sorted_list)
-    return VideoMasTrending
+    return minimap
 
 
-def getMostTrendingDaysByTitle(videos):
-    """
-    La función de  getMostTrendingDaysByTitle itera la lista y devuelve el
-    elemento que más se repite
-    """
-    elemento = lt.firstElement(videos)
-    mayor_titulo = None
+def getTotalEventsByRangeGenre(analyzer, criteria, initial, final):
+    '''
+    Retorna la suma de los eventos dentro de un rango específico
+    Args:
+        analyzer: Analizador de eventos
+        criteria: Llave del analyzer a analizar
+        initial: Inicio del rango
+        final: Fin del rango
+    '''
+    lst = om.values(analyzer[criteria], initial, final)
+    events = 0
+
+    for lstevents in lt.iterator(lst):
+        events += lt.size(lstevents['events'])
+
+    return events
+
+
+def getEventsByRangeGenres(analyzer, criteria, dicc, lista):
+    '''
+    Retorna un diccionario con llave los géneros y valores lel número de
+    eventos individuales de escucha de cada género
+    Args:
+        analyzer: Analizador de eventos
+        criteria: Llave del analyzer a analizar
+        dicc: Diccionario con los géneros y los rangos
+        lista: Lista de los rangos
+    '''
+    resultado = {}
+    for i in lista:
+        for llave in dicc:
+            llave1 = llave.split('- ')
+            llave1 = llave1[0]
+            if i == llave1:
+                lim = dicc[llave]
+                lim_inf = lim[0]
+                lim_sup = lim[1]
+                result = getEventsByRange(analyzer, criteria, lim_inf, lim_sup)
+                resultado[llave] = result
+
+    return resultado
+
+
+def getTrcForTwoCriteria(analyzer, criteria1range, str1, criteria2range, str2):
+    '''
+    Retorna los varias características de los
+    eventos dado dos criterios y rangos en el mismo,
+    buscándolos en ambos árboles. El retorno son los eventos
+    que cumplen con ambas características
+    Args:
+        analyzer: Analizador de eventos
+        criteria1range: Rango del criterio 1
+        str1: Llave del analyzer del criterio 1
+        criteria2range: Rango del criterio 2
+        str2: Llave del analyzer del criterio 2
+    '''
+    criteria1 = om.values(analyzer[str1], criteria1range[0], criteria1range[1])
+    submap = {'events': None}
+    submap[str2] = om.newMap(omaptype='RBT')
+    for eventO in lt.iterator(criteria1):
+        for event0 in lt.iterator(eventO['events']):
+            addEventOnOrderedRBTMap(submap, float(event0[str2]), event0, str2)
+    result = om.values(submap[str2], criteria2range[0], criteria2range[1])
+    artists = mp.newMap(maptype='PROBING')
+    tracks = mp.newMap(maptype='PROBING')
+    for event1 in lt.iterator(result):
+        for eventi in lt.iterator(event1['events']):
+            mp.put(artists, eventi['artist_id'], 1)
+            mp.put(
+                tracks, eventi['track_id'],
+                (eventi[str1], eventi[str2]))
+    return (mp.size(artists), mp.size(tracks), tracks)
+
+
+def getRanges(lista_generos, dicc):
+    '''
+    Retorna los rangos dados los géneros
+    '''
+    lim_inf = 1000
+    lim_sup = 0
+
+    for i in lista_generos:
+        for llave in dicc:
+            llave1 = llave.split('- ')
+            llave1 = llave1[0]
+            if i == llave1:
+                lim = dicc[llave]
+                if lim[0] <= lim_inf:
+                    lim_inf = lim[0]
+                if lim[1] >= lim_sup:
+                    lim_sup = lim[1]
+
+    ranges = []
+    n = 0
+    while n < lim_sup:
+        ranges.append(0)
+        n += 1
+
+    for x in lista_generos:
+        for llave in dicc:
+            if x in llave:
+                lim = dicc[llave]
+                h = lim[0]
+                while h < lim[1]:
+                    ranges[h] = 1
+                    h += 1
+
+    ranges.append(0)
+    resultados = []
+
+    for pos in range(0, len(ranges)):
+        if ranges[pos] == 1 and ranges[pos-1] == 0:
+            inferior = pos
+        elif ranges[pos] == 1 and ranges[pos+1] == 0:
+            superior = pos + 1
+            resultados.append((inferior, superior))
+
+    return resultados
+
+
+def getTemposByTime(analyzer, tiempo_inicio, tiempo_final):
+    '''
+    Retorna los eventos dados los tiempos al usar la
+    funcion getEventsByRangeTempoReturn()
+    '''
+    realstarttime = tiempo_inicio.split(':')
+    realstarttime = (
+        int(realstarttime[0])*3600 + int(realstarttime[1])*60
+        + int(realstarttime[2]))
+    realfinishtime = tiempo_final.split(':')
+    realfinishtime = (
+        int(realfinishtime[0])*3600 + int(realfinishtime[1])*60
+        + int(realfinishtime[2]))
+    return getEventsByRangeTempoReturn(
+        analyzer, 'created_at', realstarttime, realfinishtime)
+
+
+def getBestGenre(minimap, genredicc):
+    '''
+    Retorna un diccionario con el top de
+    los géneros dadas las repeticiones
+    '''
+    top = {}
+    bestgenre = None
     mayor = 0
-    i = 0
+    for genre in genredicc:
+        lim = genredicc[genre]
+        events = getTotalEventsByRangeGenre(
+            minimap, 'tempo_map', lim[0], lim[1])
+        top[genre] = events
+        if events > mayor:
+            mayor = events
+            bestgenre = genre
 
-    for video in lt.iterator(videos):
-        if video['video_id'] == elemento['video_id']:
-            i += 1
-        else:
-            if i > mayor:
-                mayor_titulo = elemento
-                mayor = i
-            i = 1
-            elemento = video
-
-    if i > mayor:
-        mayor_titulo = elemento
-        mayor = i
-    return (mayor_titulo, mayor)
+    return top, bestgenre
 
 
-# FUNCIONES USADAS PARA LA COMPARACIÓN DE ELEMENTOS
+def getPlaying(mapa, limite):
+    limite_inf = limite[0]
+    limite_inf = limite_inf.split(':')
+    limite_inf = int(limite_inf[0])*3600 + int(limite_inf[1])*60 + int(
+        limite_inf[2])
+    limite_sup = limite[1]
+    limite_sup = limite_sup.split(':')
+    limite_sup = int(limite_sup[0])*3600 + int(limite_sup[1])*60 + int(
+        limite_sup[2])
+    return lt.size(om.values(mapa, limite_inf, limite_sup))
 
 
-def comparevideoid(videoid, video):
-    """
-    La función de comparevideoid() retorna True or False si un
-    videoid en particular corresponde con el del video.
-    """
-    return (videoid == video['video_id'])
+def getUniqueIDs(minimap, generos, bestgenre):
+    '''
+    Retorna los eventos únicos dada la llave concatenada
+    '''
+    lim = generos[bestgenre]
+    lst = om.values(minimap['tempo_map'], lim[0], lim[1])
+    tracks = {'data': None}
+    tracks['data'] = mp.newMap(maptype='PROBING')
+    events = 0
+
+    for lstevents in lt.iterator(lst):
+        events += lt.size(lstevents['events'])
+        for soundtrackyourtimeline in lt.iterator(lstevents['events']):
+            unique_id = (
+                soundtrackyourtimeline['user_id']
+                + soundtrackyourtimeline['track_id']
+                + soundtrackyourtimeline['created_at'])
+
+            if mp.contains(tracks['data'], soundtrackyourtimeline['track_id']):
+                x = mp.get(tracks['data'], soundtrackyourtimeline['track_id'])
+                listids = me.getValue(x)
+            else:
+                listids = lt.newList('ARRAY_LIST')
+            lt.addLast(listids, unique_id)
+
+            mp.put(
+                tracks['data'], soundtrackyourtimeline['track_id'],
+                listids)
+
+    tracks_size = mp.size(tracks['data'])
+
+    return tracks['data'], tracks_size, events
 
 
-def cmpVideosByCategory(category1, category2):
-    """
-    La función de cmoVideosByCategory() retorna True or False
-    si dado el category_id de un video, este es mayor a otro
-    """
-    return (float(category1['category_id']) > float(category2['category_id']))
+def getSentimentAnalysis(unique_ids, analyzer):
+    '''
+    Retorna los eventos que tienen un hashtag
+    determinado dada la llave concatenada
+    '''
+    hashtags = analyzer['hashtags']
+    vaders = analyzer['vaders']
+    llaves = mp.keySet(unique_ids[0])
+    tracks = mp.newMap(maptype="PROBING")
 
+    for llave in lt.iterator(llaves):
+        ids = mp.get(unique_ids[0], llave)
+        vaderavg = 0
+        lista = me.getValue(ids)
+        n = 0
+        for each_id in lt.iterator(lista):
+            hashtag = mp.get(hashtags, each_id)
+            hashtag_value = me.getValue(hashtag)
+            vader = mp.get(vaders, hashtag_value.lower())
+            if (vader is not None):
+                vader_val = me.getValue(vader)
+                if (vader_val is not None) and (vader_val != ''):
+                    vaderavg += float(vader_val)
+                    n += 1
 
-def comparecountries(country_name, countries):
-    """
-    La función de comparecountries() retorna 0 o -1 si el nombre de un país
-    correspondiente al de un video del catalogo, es el
-    mismo al dado en el parámetro country_name
-    """
-    if (country_name.lower() in countries['country_name'].lower()):
-        return 0
-    return -1
+        if vaderavg != 0.0:
+            vaderavg = vaderavg/n
+            mp.put(tracks, llave, (vaderavg, n))
 
-
-def comparelikes(video1, video2):
-    """
-    La función de comparelikes() retorna True or False si dados los likes
-    de un video, este es mayor o menor a los likes de otro video
-    """
-    return (float(video1['likes'])) > (float(video2['likes']))
-
-
-def comparetitles(video1, video2):
-    """
-    La función de comparetitles() retorna True or False si el título de un
-    video es mayor al de otro video ordenando alfabéticamente
-    """
-    return (video1['title']) > (video2['title'])
-
-
-def cmpVideosByViews(video1, video2) -> bool:
-    """
-    La función de cmpVideosbyViews() retorna True or False si las visitas
-    de un video son mayores o menores a las visitas de otro video
-    """
-    return (float(video1['views']) > float(video2['views']))
-
-
-# FUNCIONES DE ORDENAMIENTO
-
-def sortVideos(catalog, size, sort_type, cmp):
-    """
-    La Función sortVideos() la usamos en varios requerimientos por la necesidad
-    de tener la información organizada. Por esto mismo, la función cuenta con
-    cuatro parámetros en donde destacan "cmp" y "sort_type". Para cada caso
-    particular, dejamos que según estos dos parámetros se invoque la función
-    correspondiente de la librería sort y usando los algoritmos de merge sort
-    y quick sort
-    """
-    sub_list = lt.subList(catalog, 0, size)
-    sub_list = sub_list.copy()
-    start_time = time.process_time()
-
-    if cmp == 'cmpVideosByViews':
-        if sort_type == "ms":
-            sorted_list = ms.sort(sub_list, cmpVideosByViews)
-        elif sort_type == "qs":
-            sorted_list = qs.sort(sub_list, cmpVideosByViews)
-
-    if cmp == 'comparetitles':
-        if sort_type == "ms":
-            sorted_list = ms.sort(sub_list, comparetitles)
-        elif sort_type == "qs":
-            sorted_list = qs.sort(sub_list, comparetitles)
-
-    if cmp == 'comparelikes':
-        if sort_type == "ms":
-            sorted_list = ms.sort(sub_list, comparelikes)
-        elif sort_type == "qs":
-            sorted_list = qs.sort(sub_list, comparelikes)
-
-    stop_time = time.process_time()
-    elapsed_time_mseg = (stop_time - start_time)*1000
-    return elapsed_time_mseg, sorted_list
+    return tracks

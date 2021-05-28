@@ -3,7 +3,7 @@
  * de Los Andes
  *
  *
- * Desarrolado para el curso ISIS1225 - Estructuras de Datos y Algoritmos
+ * Desarrollado para el curso ISIS1225 - Estructuras de Datos y Algoritmos
  *
  *
  * This program is free software: you can redistribute it and/or modify
@@ -18,242 +18,374 @@
  *
  * You should have received a copy of the GNU General Public License
  * along withthis program.  If not, see <http://www.gnu.org/licenses/>.
+ * Jose Luis Tavera Ruiz
+ * Juan Diego Yepes
  """
 
 import config as cf
 import sys
 import controller
+import os
+import random
+from DISClib.ADT import map as mp
 from DISClib.ADT import list as lt
+from DISClib.ADT import orderedmap as om
+from DISClib.DataStructures import mapentry as me
 assert cf
 
-default_limit = 1000
-sys.setrecursionlimit(default_limit*10)
-
 """
-La vista se encarga de la interacción con el usuario
-Presenta el menu de opciones y por cada seleccion
-se hace la solicitud al controlador para ejecutar la
-operación solicitada
+La vista se encarga de la interacción con el usuario.
+Presenta el menu de opciones  y  por cada seleccion
+hace la solicitud al controlador para ejecutar la
+operación seleccionada.
+Para poder ejecutar la carga de datos, debe guardar los
+archivos en una carpeta con el mismo nombre del porcen-
+taje, ej: subsamples-small como carpeta.
+A ello se deben las rutas de archivo a
+continuación
 """
 
-no_categorias = [
-    1, 2, 10, 15, 17, 18, 19, 20, 21, 22, 23, 24,
-    25, 26, 27, 28, 29, 30, 31, 33, 34, 35, 36,
-    37, 38, 39, 40, 41, 42, 43, 44]
+analyzer = None
+
+events_analysis_file = 'subsamples-small/context_content_features-small.csv'
+sentiment_values = 'subsamples-small/sentiment_values.csv'
+hashtag_file = 'subsamples-small/user_track_hashtag_timestamp-small.csv'
+rows, columns = os.popen('stty size', 'r').read().split()
+genre = {
+    '1- reggae': (60, 90),
+    '2- down-tempo': (70, 100),
+    '3- chill-out': (90, 120),
+    '4- hip-hop': (85, 115),
+    '5- jazz and funk': (120, 125),
+    '6- pop': (100, 130),
+    '7- r&b': (60, 80),
+    '8- rock': (110, 140),
+    '9- metal': (100, 160)}
 
 
 def printMenu():
-    """
-    La función de PrintMenu() Muestra las cinco opciones que tiene el
-    usuario para la busqueda de Videos según los requerimientos
-    """
-    print("\n_______________________________________________________________")
-    print("Bienvenido")
-    print("1- Cargar información en el catálogo")
+    print("_"*int(columns))
+    print("1- Inicializar analizador y cargar datos")
     print(
-        "2- Conocer cuáles son los n videos con más views que son "
-        + " tendencia en un país, dada una categoría específica."
-        )
-    print(
-        "3- Conocer cuál es el video que más días ha sido" +
-        " trending para un país específico.")
-    print(
-        "4- Cuál es el video que más días ha sido" +
-        " trending para una categoría específica.")
-    print(
-        "5- Conocer cuáles son los n videos diferentes con" +
-        " más likes en un país con un tag específico.")
-    print("0- Salir")
+        "2- Conocer cuántas reproducciones se tienen con una característica " +
+        "específica de contenido y un rango determinado")
+    print("3- Encontrar música para festejar")
+    print("4- Encontrar música para estudiar")
+    print("5- Agregar un género a la base de datos")
+    print("6- Encontrar música por género(s)")
+    print("7- Encontrar género más escuchado dado un rango de horas")
+    print("Presione cualquier otra tecla para salir")
 
 
-def initCatalog(list_type):
-    """
-    La función initCatalog() Inicializa el catalogo de Videos
-    retornando la función correspondiente del controller
-    """
-    return controller.initCatalog(list_type)
+def printTopGenres(dicc):
+    '''
+    Imprime los géneros iterando el diccionario
+    '''
+    print('\n')
+    events = dicc.values()
+    events = sorted(events, reverse=True)
+    top = 1
+    for event in events:
+        for genre in dicc:
+            if event == dicc[genre]:
+                string = genre.split("- ")
+                print(
+                    'TOP ' + str(top) + ': '
+                    + string[1] + ' with '
+                    + str(event) + ' repetitions.')
+                top += 1
 
 
-def loadData(catalog):
-    """
-    La función LoadData() carga el catalogo de Videos en la
-    estructura de datos escogida retornando la función
-    correspondiente del controller
-    """
-    controller.loadData(catalog)
-
-
-def printResults(ord_videos, sample):
-    """"
-    La función de printResults() nos permite imprimir
-    los videos según el tamaño del sample
-    la usamos para la impresión del primer
-    video en la carga del catálogo y para mostrar los
-    resultados del primer requerimiento
-    """
-    size = lt.size(ord_videos)
-    if size > sample:
-        print("Los primeros ", sample, " videos ordenados son:")
-        i = 1
-        while i <= sample:
-            video = lt.getElement(ord_videos, i)
-            print("\n")
-            print(
-                'Título: ' + str(video.get('title')) + ", " +
-                'Nombre del canal: ' + str(video.get('channel_title')) + ", " +
-                'Fue tendencia el día: ' + str(video.get('trending_date'))
-                + ", " +
-                'Visitas: ' + str(video.get('views')) + ", " +
-                'Likes: ' + str(video.get('likes')) + ", " +
-                'Dislikes: ' + str(video.get('dislikes')) + ", " +
-                'Fecha de publicación: ' + str(video.get('dislikes')))
-            i += 1
-
-
-def printResultsv2(ord_videos, sample):
-    printlist = []
+def printfirstandlast5(arraylist):
+    '''
+    Imprime últimos y primeros 5 eventos cargados
+    '''
+    printlist = arraylist['listening_events']
     i = 1
-    while len(printlist) <= (sample - 1):
-        element = lt.getElement(ord_videos, i)
-        title = str(element.get('title'))
-        if title not in printlist:
-            printlist.append(title)
-            print("\n")
-            print(
-                'Título: ' + str(element.get('title')) + ", " +
-                'Nombre del canal: ' + str(element.get('channel_title'))
-                + ", " + 'Visitas: ' + str(element.get('views')) + ", " +
-                'Likes: ' + str(element.get('likes')) + ", " +
-                'Dislikes: ' + str(element.get('dislikes')) + ", " +
-                'Tags: ' + str(element.get('tags')))
+    listsize = lt.size(printlist)
+    while i <= 5:
+        element = lt.getElement(printlist, i)
+        print('\n')
+        print(
+                'Track ID: ' + str(element.get('track_id')) + ", " +
+                'Instrumentalness: ' + str(element.get('instrumentalness'))
+                + ", " + 'Liveness: ' + str(element.get('liveness')) + ", " +
+                'Speechiness: ' + str(element.get('speechiness')) + ", " +
+                'Danceability: ' + str(element.get('danceability')) + ", " +
+                'Valence: ' + str(element.get('valence')) + ", " +
+                'Loudness: ' + str(element.get('loudness')) + ", " +
+                'Tempo: ' + str(element.get('tempo')) + ", " +
+                'Acousticness: ' + str(element.get('acousticness')) + ", " +
+                'Energy: ' + str(element.get('energy')) + ", " +
+                'Mode: ' + str(element.get('mode')) + ", " +
+                'key: ' + str(element.get('key')) + ", " +
+                'Artist ID: ' + str(element.get('artist_id')) + ", " +
+                'Created at: ' + str(element.get('created_at')) + ", " +
+                'User ID: ' + str(element.get('user_id')))
+        i += 1
+    i = listsize
+    while i > (listsize - 5):
+        element = lt.getElement(printlist, (i))
+        print('\n')
+        print(
+                'Track ID: ' + str(element.get('track_id')) + ", " +
+                'Instrumentalness: ' + str(element.get('instrumentalness'))
+                + ", " + 'Liveness: ' + str(element.get('liveness')) + ", " +
+                'Speechiness: ' + str(element.get('speechiness')) + ", " +
+                'Danceability: ' + str(element.get('danceability')) + ", " +
+                'Valence: ' + str(element.get('valence')) + ", " +
+                'Loudness: ' + str(element.get('loudness')) + ", " +
+                'Tempo: ' + str(element.get('tempo')) + ", " +
+                'Acousticness: ' + str(element.get('acousticness')) + ", " +
+                'Energy: ' + str(element.get('energy')) + ", " +
+                'Mode: ' + str(element.get('mode')) + ", " +
+                'key: ' + str(element.get('key')) + ", " +
+                'Artist ID: ' + str(element.get('artist_id')) + ", " +
+                'Created at: ' + str(element.get('created_at')) + ", " +
+                'User ID: ' + str(element.get('user_id')))
+        i -= 1
+
+
+def printRandom5(mapa, str1, str2):
+    '''
+    Imprime 5 eventos random dentro del mapa
+    '''
+    lista = mp.keySet(mapa)
+    listsize = lt.size(lista)
+    sample = random.sample(range(listsize), 5)
+    n = 0
+    for num in sample:
+        n += 1
+        element = lt.getElement(lista, num)
+        thing = mp.get(mapa, element)
+        value = me.getValue(thing)
+        print(
+            "Track:", n, str(element),
+            str1, ':', value[0], str2, ':', value[1])
+
+
+def printartists(artistsmap):
+    '''
+    Imprime los artistas en el mapa
+    '''
+    i = 1
+    keys = mp.keySet(artistsmap)
+    while i < 11:
+        print("Artist no. " + str(i) + " ID: " + str(lt.getElement(keys, i)))
         i += 1
 
 
-def printResultsv3(result):
-    print(
-            'Título: ' + str(result[0].get('title')) + ", " +
-            'Nombre del canal: ' + str(result[0].get('channel_title')) + ", " +
-            'País: ' + str(result[0].get('country')) + ", " +
-            'No. de días trending: ' + str(result[1]))
+def printgenre(dicc):
+    '''
+    Imprime para cada género información solicitada
+    '''
+    for genre in dicc:
+        result = dicc[genre]
+        print('\n')
+        print(genre)
+        print('Registro de eventos Cargados: ' + str(result[0]))
+        print('Artistas únicos Cargados: ' + str(result[1]))
+        printartists(result[4])
+
+
+def printfortotal(analyzer, ranges):
+    '''
+    Imprime los eventos únicos totales
+    '''
+    total_events = 0
+    for every_tuple in ranges:
+        events = controller.getEventsByRange(
+            analyzer, 'tempo', every_tuple[0], every_tuple[1])
+        total_events += events[0][0]
+    print('\n')
+    print("Registro de eventos únicos totales: " + str(total_events))
+
+
+def printgenresdict(dicc):
+    '''
+    Imprime el diccionario de géneros
+    '''
+    for key in dicc.keys():
+        print(key, ' Rango de tempo: ', dicc[key])
+
+
+def printtop10tracks(mapa, bestgenre):
+    '''
+    Imprime el top 10 del mapa de tracks
+    '''
+    print('\n')
+    bestgenre = bestgenre.split('- ')[1]
+    print('Las tracks únicas de', bestgenre, 'son', mp.size(mapa))
+    keys = mp.keySet(mapa)
+    n = 1
+    for key in lt.iterator(keys):
+        if n == 11:
+            break
+        value = mp.get(mapa, key)
+        actualvalue = me.getValue(value)
+        print(
+            'TOP', n, 'track:', key, 'vader:', actualvalue[0], 'hashtags',
+            actualvalue[1])
+        n += 1
 
 
 """
 Menu principal
 """
-
 while True:
     printMenu()
-    print('\n')
-    inputs = input('Seleccione una opción para continuar: ')
+    inputs = input('Seleccione una opción para continuar\n')
 
-    if str(inputs[0]) == "1":
-        x = 'ARRAY_LIST'
-        print("\nCargando información de los archivos ....")
-        catalog = initCatalog(x)
-        loadData(catalog)
-        first = lt.firstElement(catalog['video'])
-        primervideo = {
-            'Título: ': str(first.get('title')),
-            'Nombre del canal: ': str(first.get('channel_title')),
-            'Fue tendencia el día: ': str(first.get('trending_date')),
-            'Visitas: ': str(first.get('views')),
-            'Likes: ': str(first.get('likes')),
-            'Dislikes: ': str(first.get('dislikes'))}
-
-        print('\nVideos cargados: ' + str(lt.size(catalog['video'])))
-        print('\nDatos del primer video: ')
-        for i in primervideo.keys():
-            print(str(i) + str(primervideo.get(i)))
+    if int(inputs[0]) == 1:
+        analyzer = controller.init()
+        print("Cargando información de los archivos...")
+        answer = controller.loadData(
+            analyzer, events_analysis_file, hashtag_file, sentiment_values)
+        print('Registro de eventos Cargados: ' + str(controller.eventsSize(
+            analyzer)))
+        print('Artistas únicos Cargados: ' + str(controller.artistsSize(
+            analyzer)))
+        print('Pistas únicas Cargados: ' + str(controller.tracksSize(
+            analyzer)))
+        print('\n')
+        print('Primeros y últimos 5 cargados, respectivamente: ')
+        printfirstandlast5(analyzer)
+        print('\n')
         print(
-            "\n" + str(lt.size(catalog['category'])) + ' Categorías cargadas: '
-            )
-        i = 1
-        resultadoxy = []
-        while i <= int(lt.size(catalog['category'])):
-            resultadoxy.append(
-                lt.getElement(catalog['category'], i).get('c_id') + ":" +
-                lt.getElement(catalog['category'], i).get('name'))
-            i += 1
-        print(*resultadoxy, sep=' ')
+            "Tiempo [ms]: ",
+            f"{answer[0]:.3f}", "  ||  ",
+            "Memoria [kB]: ",
+            f"{answer[1]:.3f}")
+        print('instrumentalness: ', om.height(analyzer['instrumentalness']))
+        print('acousticness: ', om.height(analyzer['acousticness']))
+        print('liveness: ', om.height(analyzer['liveness']))
+        print('speechiness: ', om.height(analyzer['speechiness']))
+        print('energy: ', om.height(analyzer['energy']))
+        print('danceability: ', om.height(analyzer['danceability']))
+        print('valence: ', om.height(analyzer['valence']))
+        print('tempo: ', om.height(analyzer['tempo']))
+        print('created_at: ', om.height(analyzer['created_at']))
 
-        lista = ''
-        for i in range(0, lt.size(catalog['country'])):
-            element = lt.getElement(catalog['country'], i)
-            pais = str(element.get('country_name'))
-            if i < (lt.size(catalog['country'])-1):
-                lista += (pais.lower() + ", ")
-            else:
-                lista += pais.lower()
+    elif int(inputs[0]) == 2:
+        criteria = input("Ingrese el criterio a evaluar: ")
+        initial = float(input("Ingrese el límite inferior: "))
+        final = float(input("Ingrese el límite superior: "))
+        print("Buscando en la base de datos ....")
+        result = controller.getEventsByRange(
+            analyzer, criteria, initial, final)
+        print('Registro de eventos Cargados: ' + str(result[0][0]))
+        print('Artistas únicos Cargados: ' + str(result[0][1]))
         print(
-            "\n" + str(lt.size(catalog['country'])) + ' Países cargados: ',
-            lista)
+            "Tiempo [ms]: ",
+            f"{result[1]:.3f}", "  ||  ",
+            "Memoria [kB]: ",
+            f"{result[2]:.3f}")
 
-    elif str(inputs[0]) == "2":
-        pais = input("\nIngrese el país de referencia: ")
-        if pais.lower() in lista:
-            categoria = int(input('Ingrese la categoría de referencia: '))
-            if categoria in no_categorias:
-                n = int(input(
-                    "Ingrese el número de videos que desea imprimir: "))
-                print("\nCargando ....")
-                resultado = controller.Requerimiento_2(
-                    catalog['country'], categoria, pais)
-                print(
-                    "Para la muestra de",
-                    lt.size(catalog['country']),
-                    "elementos, el tiempo (mseg) es:",
-                    str(resultado[0]))
-                print("\n")
-                printResults(resultado[1], int(n))
-
-            else:
-                print("\n")
-                print("No se encontró la Categoría")
-        else:
-            print("\n")
-            print("No se encontró el país")
-
-    elif str(inputs[0]) == "3":
-        pais = input("Ingrese el país de referencia: ")
-        print("\nCargando ....")
-        lista = controller.getVideosByCountry(catalog['country'], pais)
-        result = controller.sortVideos(
-            lista, lt.size(lista), 'ms', 'comparetitles')[1]
-        dias_tendencia = controller.getMostTrendingDays(result)
-        print("\n")
-        printResultsv3(dias_tendencia)
-
-    elif str(inputs[0]) == "4":
-        categoria = int(input('Ingrese la categoría de referencia: '))
-        print("\nCargando ....")
-        result1 = controller.getVideosByCategory(
-            catalog['video'], categoria)
-        result = controller.sortVideos(
-            result1, lt.size(result1), 'ms', 'comparetitles')[1]
-
-        video_tendencia = controller.getMostTrendingDays(result)
-        print("\n")
-        printResultsv3(video_tendencia)
-
-    elif str(inputs[0]) == "5":
-        pais = input("Ingrese el país de referencia: ")
-        tag = input('Ingrese el tag de referencia: ')
-        n = int(input("Ingrese el número de videos que desea imprimir: "))
-        print("\nCargando ....")
-
-        result = controller.getVideosByCountryAndTag(
-             catalog['country'], tag, pais)
-
+    elif int(inputs[0]) == 3:
+        initialenergy = float(input(
+            "Ingrese el límite inferior para la energía: "))
+        finalenergy = float(input(
+            "Ingrese el límite superior para la energía: "))
+        energyrange = (initialenergy, finalenergy)
+        initialdanceability = float(input(
+            "Ingrese el límite inferior para la bailabilidad: "))
+        finaldanceability = float(input(
+            "Ingrese el límite superior para la bailabilidad: "))
+        danceabilityrange = (initialdanceability, finaldanceability)
+        print("Buscando en la base de datos ....")
+        result = controller.getMusicToParty(
+            analyzer, energyrange, danceabilityrange)
+        print('Artistas únicos Cargados:', str(result[0][0]))
+        print('Tracks únicas Cargadas:', str(result[0][1]))
+        printRandom5(result[0][2], 'energy', 'danceability')
         print(
-            "Para la muestra de",
-            lt.size(catalog['country']),
-            "elementos, el tiempo (mseg) es:",
-            str(result[0]))
+            "Tiempo [ms]: ",
+            f"{result[1]:.3f}", "  ||  ",
+            "Memoria [kB]: ",
+            f"{result[2]:.3f}")
 
-        printResultsv2(result[1], n)
+    elif int(inputs[0]) == 4:
+        initialinstrumentalness = float(input(
+            "Ingrese el límite inferior para la instrumentalidad: "))
+        finalinstrumentalness = float(input(
+            "Ingrese el límite superior para la instrumentalidad: "))
+        instrumentalnessrange = (
+            initialinstrumentalness, finalinstrumentalness)
+        initialtempo = float(input(
+            "Ingrese el límite inferior para el tempo: "))
+        finaltempo = float(input(
+            "Ingrese el límite superior para el tempo: "))
+        temporange = (initialtempo, finaltempo)
+        print("Buscando en la base de datos ....")
+        result = controller.getMusicToStudy(
+            analyzer, instrumentalnessrange, temporange)
+        print('Artistas únicos Cargados:', str(result[0][0]))
+        print('Tracks únicas Cargadas:', str(result[0][1]))
+        printRandom5(result[0][2], 'instrumentalness', 'tempo')
+        print(
+            "Tiempo [ms]: ",
+            f"{result[1]:.3f}", "  ||  ",
+            "Memoria [kB]: ",
+            f"{result[2]:.3f}")
 
-    elif str(inputs[0]) == "0":
-        sys.exit(0)
+    elif int(inputs[0]) == 5:
+        genero = input("Ingrese el nombre del género musical: ")
+        lim_inf = int(input("Ingrese el límite inferior del Tempo: "))
+        lim_sup = int(input("Ingrese el límite superior del Tempo: "))
+        n = len(genre.keys()) + 1
+        llave = str(n) + "- " + str(genero)
+        genre[llave] = (lim_inf, lim_sup)
+        print("El género " + str(genero) + " ha sido agregado con éxito!")
+        print(genre)
+        print('Ésta es la base de datos actualizada:')
+        printgenresdict(genre)
+
+    elif int(inputs[0]) == 6:
+        print('Éstos son los géneros disponibles para consulta:')
+        printgenresdict(genre)
+        lista_generos = []
+        generos = "1"
+        print("Ingrese el número de cada uno de los géneros a consultar.")
+        print("Para dejar de agregar géneros a la búsqueda, presione enter.")
+        while len(generos) > 0:
+            generos = input('~')
+            if len(generos) != 0:
+                lista_generos.append(generos)
+        ranges = controller.getRanges(lista_generos, genre)
+        dicc = controller.getEventsByRangeGenres(
+            analyzer, 'tempo', genre, lista_generos)
+        printgenre(dicc[0])
+        printfortotal(analyzer, ranges)
+        print(
+            "Tiempo [ms]: ",
+            f"{dicc[1]:.3f}", "  ||  ",
+            "Memoria [kB]: ",
+            f"{dicc[2]:.3f}")
+
+    elif int(inputs[0]) == 7:
+        print("Ingrese la hora de inicio en formato 24h: (Ej. 12:34:56)")
+        tiempo_inicio = input("~")
+        print("Ingrese la hora final en formato 24h: (Ej. 12:34:56)")
+        tiempo_final = input("~")
+        print(
+            "Eventos de escucha entre", tiempo_inicio, 'y', tiempo_final,
+            ":", controller.getPlaying(
+                    analyzer['created_at'],
+                    (tiempo_inicio, tiempo_final)))
+        result = controller.getTemposByTime(
+            analyzer, tiempo_inicio, tiempo_final)
+        bestgenre = controller.getBestGenre(result, genre)
+        printTopGenres(bestgenre[0])
+        uniqueIDs = controller.getUniqueIDs(
+            result, genre, bestgenre[1])
+        result2 = controller.getSentimentAnalysis(uniqueIDs, analyzer)
+        printtop10tracks(result2[0], bestgenre[1])
+        print(
+            "Tiempo [ms]: ",
+            f"{result2[1]:.3f}", "  ||  ",
+            "Memoria [kB]: ",
+            f"{result2[2]:.3f}")
+
     else:
-        print("\n")
-        print("Opción No Válida")
+        sys.exit(0)
+sys.exit(0)

@@ -18,121 +18,292 @@
  *
  * You should have received a copy of the GNU General Public License
  * along withthis program.  If not, see <http://www.gnu.org/licenses/>.
+ * Jose Luis Tavera Ruiz
+ * Juan Diego Yepes
  """
 
 import config as cf
-from DISClib.ADT import list as lt
 import model
 import csv
+import time
+import tracemalloc
 
 
 """
 El controlador se encarga de mediar entre la vista y el modelo.
 """
 
-# Inicialización del Catálogo de libros
 
-
-def initCatalog(list_type):
+def init():
     """
-    Llama la funcion de inicializacion del catalogo del modelo.
+    Llama la funcion de inicializacion  del modelo.
     """
-    catalog = model.newCatalog(list_type)
-    return catalog
+    # catalog es utilizado para interactuar con el modelo
+    analyzer = model.newAnalyzer()
+    return analyzer
 
+
+# Inicialización del Catálogo
+
+
+def loadData(analyzer, file1, file2, file3):
+    """
+    Carga los datos de los archivos CSV en el modelo
+    """
+    delta_time = -1.0
+    delta_memory = -1.0
+
+    tracemalloc.start()
+    start_time = getTime()
+    start_memory = getMemory()
+
+    loadEvents(analyzer, file1)
+    loadHashtags(analyzer, file2)
+    loadVader(analyzer, file3)
+
+    stop_memory = getMemory()
+    stop_time = getTime()
+    tracemalloc.stop()
+
+    delta_time = stop_time - start_time
+    delta_memory = deltaMemory(start_memory, stop_memory)
+
+    return delta_time, delta_memory
 
 # Funciones para la carga de datos
 
 
-def loadData(catalog):
+def loadEvents(analyzer, file):
     """
-    Carga los datos de los archivos y cargar los datos en la
-    estructura de datos
+    Itera cada elemento del archivo csv
     """
-    loadVideos(catalog)
-    loadCategories(catalog)
+    analysis_file = cf.data_dir + file
+    input_file = csv.DictReader(open(analysis_file, encoding="utf-8"),
+                                delimiter=",")
+    for event in input_file:
+        model.addEvent(analyzer, event)
 
 
-def loadVideos(catalog):
+def loadHashtags(analyzer, file):
     """
-    Carga los videos del archivo.
+    Itera cada elemento del archivo csv
     """
-    videosfile = cf.data_dir + 'videos/videos-large.csv'
-    input_file = csv.DictReader(open(videosfile, encoding='utf-8'))
-    for video in input_file:
-        model.addVideo(catalog, video)
+    analysis_file = cf.data_dir + file
+    input_file = csv.DictReader(open(analysis_file, encoding="utf-8"),
+                                delimiter=",")
+    for event in input_file:
+        key = event['user_id'] + event['track_id'] + event['created_at']
+        model.addOnMap(analyzer, event['hashtag'], key, 'hashtags')
 
 
-def loadCategories(catalog):
+def loadVader(analyzer, file):
     """
-    Carga todas las categorías del archivo y los agrega a la lista de
-    categorias
+    Itera cada elemento del archivo csv
     """
-    categoriesfile = cf.data_dir + 'videos/category-id.csv'
-    input_file = csv.DictReader(
-        open(categoriesfile, encoding='utf-8'), delimiter='\t')
-    for category in input_file:
-        model.addCategory(catalog, category)
+    analysis_file = cf.data_dir + file
+    input_file = csv.DictReader(open(analysis_file, encoding="utf-8"),
+                                delimiter=",")
+    for vader in input_file:
+        model.addOnMap(
+            analyzer, vader['vader_avg'], vader['hashtag'], 'vaders')
 
 # Funciones de ordenamiento
 
+# Funciones de consulta sobre el analyzer
 
-def sortVideos(catalog, size, sort_type, cmp):
+
+def getEventsByRange(analyzer, criteria, initial, final):
+    '''
+    Función puente entre las funciones homónimas entre el model y view
+    '''
+    delta_time = -1.0
+    delta_memory = -1.0
+
+    tracemalloc.start()
+    start_time = getTime()
+    start_memory = getMemory()
+
+    result = model.getEventsByRange(analyzer, criteria, initial, final)
+
+    stop_memory = getMemory()
+    stop_time = getTime()
+    tracemalloc.stop()
+
+    delta_time = stop_time - start_time
+    delta_memory = deltaMemory(start_memory, stop_memory)
+    return result, delta_time, delta_memory
+
+
+def getEventsByRangeGenres(analyzer, criteria, dicc, list):
+    '''
+    Función puente entre las funciones homónimas entre el model y view
+    '''
+    delta_time = -1.0
+    delta_memory = -1.0
+
+    tracemalloc.start()
+    start_time = getTime()
+    start_memory = getMemory()
+
+    result = model.getEventsByRangeGenres(analyzer, criteria, dicc, list)
+    stop_memory = getMemory()
+    stop_time = getTime()
+    tracemalloc.stop()
+
+    delta_time = stop_time - start_time
+    delta_memory = deltaMemory(start_memory, stop_memory)
+    return result, delta_time, delta_memory
+
+
+def getMusicToParty(analyzer, energyrange, danceabilityrange):
+    '''
+    Función puente entre las funciones homónimas entre el model y view
+    '''
+    delta_time = -1.0
+    delta_memory = -1.0
+
+    tracemalloc.start()
+    start_time = getTime()
+    start_memory = getMemory()
+
+    result = model.getTrcForTwoCriteria(
+        analyzer, energyrange, 'energy', danceabilityrange, 'danceability')
+
+    stop_memory = getMemory()
+    stop_time = getTime()
+    tracemalloc.stop()
+
+    delta_time = stop_time - start_time
+    delta_memory = deltaMemory(start_memory, stop_memory)
+    return result, delta_time, delta_memory
+
+
+def getMusicToStudy(analyzer, instrumentalnessrange, temporange):
+    '''
+    Función puente entre las funciones homónimas entre el model y view
+    '''
+    delta_time = -1.0
+    delta_memory = -1.0
+
+    tracemalloc.start()
+    start_time = getTime()
+    start_memory = getMemory()
+
+    result = model.getTrcForTwoCriteria(
+        analyzer,
+        instrumentalnessrange, 'instrumentalness', temporange, 'tempo')
+
+    stop_memory = getMemory()
+    stop_time = getTime()
+    tracemalloc.stop()
+
+    delta_time = stop_time - start_time
+    delta_memory = deltaMemory(start_memory, stop_memory)
+    return result, delta_time, delta_memory
+
+
+def getBestGenre(minimap, genredicc):
+    '''
+    Función puente entre las funciones homónimas entre el model y view
+    '''
+    return model.getBestGenre(minimap, genredicc)
+
+
+def getRanges(lista_generos, genre):
+    '''
+    Función puente entre las funciones homónimas entre el model y view
+    '''
+    return model.getRanges(lista_generos, genre)
+
+
+def getTemposByTime(analyzer, tiempo_inicio, tiempo_final):
+    '''
+    Función puente entre las funciones homónimas entre el model y view
+    '''
+    return model.getTemposByTime(analyzer, tiempo_inicio, tiempo_final)
+
+
+def getUniqueIDs(minimap, generos, bestgenre):
+    '''
+    Función puente entre las funciones homónimas entre el model y view
+    '''
+    return model.getUniqueIDs(minimap, generos, bestgenre)
+
+
+def getPlaying(mapa, limite):
+    return model.getPlaying(mapa, limite)
+
+
+def getSentimentAnalysis(unique_ids, analyzer):
+    '''
+    Función puente entre las funciones homónimas entre el model y view
+    '''
+    delta_time = -1.0
+    delta_memory = -1.0
+
+    tracemalloc.start()
+    start_time = getTime()
+    start_memory = getMemory()
+
+    result = model.getSentimentAnalysis(unique_ids, analyzer)
+
+    stop_memory = getMemory()
+    stop_time = getTime()
+    tracemalloc.stop()
+
+    delta_time = stop_time - start_time
+    delta_memory = deltaMemory(start_memory, stop_memory)
+    return result, delta_time, delta_memory
+
+
+def eventsSize(analyzer):
     """
-    Ordena los videos por el parámetro cmp
+    Número de eventos cargados
     """
-    return model.sortVideos(catalog, size, sort_type, cmp)
+    return model.eventsSize(analyzer)
 
 
-# Funciones de consulta sobre el catálogo
-
-def getVideosByCategoryAndCountry(catalog, category, country):
-    '''
-    Retorna los videos dado un país y categoría específicos
-    '''
-    return model.getVideosByCategoryAndCountry(catalog, category, country)
+def artistsSize(analyzer):
+    """
+    Número de artistas únicos
+    """
+    return model.artistsSize(analyzer)
 
 
-def getVideosByCountryAndTag(catalog, tag, country):
-    '''
-    Retorna los videos dado un país y tag específicos
-    '''
-    return model.getVideosByCountryAndTag(catalog, tag, country)
+def tracksSize(analyzer):
+    """
+    Número de pistas únicas
+    """
+    return model.tracksSize(analyzer)
+
+# Medir tiempo y memoria
 
 
-def getVideoMasTrendingByCategory(catalog, categoria):
-    '''
-    Retorna el video que fue más tiempo trending por categoría
-    '''
-    return model.VideoMasTrendingCategoria(catalog, categoria)
+def getTime():
+    """
+    devuelve el instante tiempo de procesamiento en milisegundos
+    """
+    return float(time.perf_counter()*1000)
 
 
-def getVideosByCountry(catalog, country):
-    '''
-    Retorna los videos dado un país específico
-    '''
-    return model.getVideosByCountry(catalog, country)
+def getMemory():
+    """
+    toma una muestra de la memoria alocada en instante de tiempo
+    """
+    return tracemalloc.take_snapshot()
 
 
-def getVideosByCategory(catalog, categoria):
-    '''
-    Retorna los videos dado una categoría específica
-    '''
-    return model.getVideosByCategory(catalog, categoria)
+def deltaMemory(start_memory, stop_memory):
+    """
+    calcula la diferencia en memoria alocada del programa entre dos
+    instantes de tiempo y devuelve el resultado en bytes (ej.: 2100.0 B)
+    """
+    memory_diff = stop_memory.compare_to(start_memory, "filename")
+    delta_memory = 0.0
 
-
-def getMostTrendingDays(catalog):
-    '''
-    Retorna el video que fue más tiempo trending
-    '''
-    return model.getMostTrendingDaysByTitle(catalog)
-
-
-# Funciones de los Requerimientos
-
-def Requerimiento_2(catalogo, categoria, pais):
-    result1 = model.getVideosByCategoryAndCountry(
-                catalogo, categoria, pais)
-    result = model.sortVideos(
-                result1, lt.size(result1), 'ms', 'cmpVideosByViews')
-    return result
+    # suma de las diferencias en uso de memoria
+    for stat in memory_diff:
+        delta_memory = delta_memory + stat.size_diff
+    # de Byte -> kByte
+    delta_memory = delta_memory/1024.0
+    return delta_memory
